@@ -10,7 +10,7 @@ interface ChatInputProps {
   placeholder?: string
 }
 
-export function ChatInput({ onSend, disabled, placeholder = 'Ask TEMS data...' }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, placeholder = 'Ask about your telecom data...' }: ChatInputProps) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -63,9 +63,6 @@ export function ChatInput({ onSend, disabled, placeholder = 'Ask TEMS data...' }
           <span className="sr-only">Send message</span>
         </Button>
       </div>
-      <p className="text-[10px] text-muted-foreground text-center mt-2">
-        Press Enter to send, Shift+Enter for new line
-      </p>
     </div>
   )
 }

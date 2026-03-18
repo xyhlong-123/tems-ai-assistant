@@ -15,24 +15,30 @@ export default function TEMSPage() {
 
   return (
     <div className="min-h-[100dvh] bg-background relative">
-      {/* Mobile Header */}
-      <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card fixed top-0 left-0 right-0 z-20">
+      {/* Mobile Header - only show when chat is hidden */}
+      <header className={cn(
+        "lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card fixed top-0 left-0 right-0 z-20",
+        showChat && "hidden"
+      )}>
         <div className="flex items-center gap-2">
           <span className="font-semibold text-foreground">TEMS AI Assistant</span>
         </div>
         <Button
-          variant={showChat ? 'default' : 'outline'}
+          variant="default"
           size="sm"
-          onClick={() => setShowChat(!showChat)}
+          onClick={() => setShowChat(true)}
           className="gap-1.5"
         >
-          {showChat ? <X className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
-          <span>{showChat ? 'View TEMS' : 'AI Assistant'}</span>
+          <MessageSquare className="w-4 h-4" />
+          <span>AI Assistant</span>
         </Button>
       </header>
 
-      {/* Full screen TEMS Background */}
-      <div className="h-[100dvh] pt-[57px] lg:pt-0 relative">
+      {/* Full screen TEMS Background - hidden on mobile when chat is shown */}
+      <div className={cn(
+        "h-[100dvh] pt-[57px] lg:pt-0 relative",
+        showChat && "hidden lg:block"
+      )}>
         <Image
           src={TEMS_BACKGROUND}
           alt="TEMS Invoice Search Interface"
@@ -40,12 +46,12 @@ export default function TEMSPage() {
           className="object-cover object-top"
           priority
         />
-        
-        {/* Floating AI Assistant Toggle Button */}
+
+        {/* Floating AI Assistant Toggle Button - desktop only */}
         <Button
           variant="default"
           className={cn(
-            "fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 gap-2 shadow-lg z-30 transition-all duration-300",
+            "fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 gap-2 shadow-lg z-30 transition-all duration-300 hidden lg:flex",
             showChat ? "lg:right-[396px]" : "right-6"
           )}
           onClick={() => setShowChat(!showChat)}
@@ -53,24 +59,27 @@ export default function TEMSPage() {
           {showChat ? (
             <>
               <X className="w-4 h-4" />
-              <span className="hidden sm:inline">Hide AI Assistant</span>
+              <span>Hide AI Assistant</span>
             </>
           ) : (
             <>
               <MessageSquare className="w-4 h-4" />
-              <span className="hidden sm:inline">Open AI Assistant</span>
+              <span>Open AI Assistant</span>
             </>
           )}
         </Button>
       </div>
 
-      {/* Single Chat Panel - responds to both mobile and desktop */}
+      {/* Chat Panel */}
       <div
         className={cn(
-          'fixed right-0 top-0 h-[100dvh] transition-transform duration-300 ease-in-out z-40 shadow-2xl',
-          'pt-[57px] lg:pt-0',
+          // Mobile: full screen when visible
+          'fixed right-0 top-0 h-[100dvh] z-40',
           'w-full lg:w-[380px]',
-          showChat ? 'translate-x-0' : 'translate-x-full'
+          // Desktop: slide animation
+          'lg:transition-transform lg:duration-300 lg:ease-in-out lg:shadow-2xl lg:border-l lg:border-border',
+          // Mobile: just show/hide, no slide
+          showChat ? 'block lg:translate-x-0' : 'hidden lg:block lg:translate-x-full'
         )}
       >
         <ChatPanel className="h-full" />

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { User, Bot } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 
 interface MessageBubbleProps {
   content: string
@@ -29,16 +29,16 @@ export function MessageBubble({ content, isUser, timestamp }: MessageBubbleProps
       <div
         className={cn(
           'flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center',
-          isUser ? 'bg-primary' : 'bg-muted'
+          isUser ? 'bg-primary' : 'bg-primary/10'
         )}
       >
         {isUser ? (
-          <User className="w-3.5 h-3.5 text-primary-foreground" />
+          <span className="text-[11px] font-semibold text-primary-foreground">U</span>
         ) : (
-          <Bot className="w-3.5 h-3.5 text-muted-foreground" />
+          <Sparkles className="w-3.5 h-3.5 text-primary" />
         )}
       </div>
-      
+
       <div className="flex flex-col gap-1">
         <div
           className={cn(
