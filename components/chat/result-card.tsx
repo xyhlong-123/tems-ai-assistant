@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Download, Code, ChevronDown, ChevronUp, Database, Calculator } from 'lucide-react'
+import { Download, Code, ChevronDown, ChevronUp, Database, Info } from 'lucide-react'
 import type { QueryResult } from '@/lib/mock-data'
 
 interface ResultCardProps {
@@ -12,10 +12,23 @@ interface ResultCardProps {
 
 export function ResultCard({ result }: ResultCardProps) {
   const [showSQL, setShowSQL] = useState(false)
+  const [showMethodology, setShowMethodology] = useState(false)
+  const [showTable, setShowTable] = useState(false)
 
   const handleDownloadCSV = () => {
-    // Simulate CSV download
-    const csvContent = `Title,Value,Source,Calculation\n"${result.title}","${result.value}","${result.source}","${result.calculation}"`
+    let csvContent: string
+    if (result.tableData && result.tableColumns) {
+      const headers = result.tableColumns.map(c => c.label).join(',')
+      const rows = result.tableData.map(row =>
+        result.tableColumns!.map(c => {
+          const val = row[c.key]
+          return typeof val === 'string' ? `"${val}"` : val
+        }).join(',')
+      ).join('\n')
+      csvContent = `${headers}\n${rows}`
+    } else {
+      csvContent = `Title,Value,Source,Calculation\n"${result.title}","${result.value}","${result.source}","${result.calculation}"`
+    }
     const blob = new Blob([csvContent], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -33,29 +46,87 @@ export function ResultCard({ result }: ResultCardProps) {
           {result.title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-3 pb-3 space-y-3">
+      <CardContent className="px-3 pb-3 space-y-2">
         {/* Main Value */}
         <div className="text-xl font-semibold text-primary">
           {result.value}
         </div>
-        
-        {/* Source */}
-        <div className="flex items-start gap-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground/70">Source:</span>
-          <span>{result.source}</span>
-        </div>
-        
-        {/* Calculation */}
-        <div className="flex items-start gap-2 text-xs text-muted-foreground">
-          <Calculator className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">
-            {result.calculation}
-          </code>
-        </div>
-        
+
+        {/* Methodology / Source (collapsible) */}
+        <button
+          onClick={() => setShowMethodology(!showMethodology)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Info className="w-3.5 h-3.5" />
+          <span>Data source & methodology</span>
+          {showMethodology ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+
+        {showMethodology && (
+          <div className="p-2.5 bg-muted/50 rounded-lg space-y-1.5 text-xs text-muted-foreground">
+            <div className="flex items-start gap-1.5">
+              <span className="font-medium text-foreground/70 shrink-0">Source:</span>
+              <span>{result.source}</span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <span className="font-medium text-foreground/70 shrink-0">Formula:</span>
+              <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">
+                {result.calculation}
+              </code>
+            </div>
+          </div>
+        )}
+
+        {/* Data Table (collapsible) */}
+        {result.tableData && result.tableColumns && (
+          <>
+            <button
+              onClick={() => setShowTable(!showTable)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>View detail data ({result.tableData.length} rows)</span>
+              {showTable ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
+            {showTable && (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      {result.tableColumns.map(col => (
+                        <th
+                          key={col.key}
+                          className={`px-2 py-1.5 font-medium text-foreground/70 ${col.align === 'right' ? 'text-right' : 'text-left'}`}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.tableData.map((row, i) => (
+                      <tr key={i} className="border-t border-border/50 hover:bg-muted/30">
+                        {result.tableColumns!.map(col => (
+                          <td
+                            key={col.key}
+                            className={`px-2 py-1.5 text-foreground ${col.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
+                          >
+                            {col.format ? col.format(row[col.key]) : String(row[col.key])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
         {/* SQL Query (collapsible) */}
         {result.sql && (
-          <div className="pt-1">
+          <div>
             <Button
               variant="ghost"
               size="sm"
@@ -64,21 +135,17 @@ export function ResultCard({ result }: ResultCardProps) {
             >
               <Code className="w-3.5 h-3.5" />
               {showSQL ? 'Hide SQL' : 'Show SQL'}
-              {showSQL ? (
-                <ChevronUp className="w-3 h-3" />
-              ) : (
-                <ChevronDown className="w-3 h-3" />
-              )}
+              {showSQL ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
             </Button>
-            
+
             {showSQL && (
-              <pre className="mt-2 p-2 bg-muted rounded-lg text-[11px] font-mono overflow-x-auto text-muted-foreground">
+              <pre className="mt-1 p-2 bg-muted rounded-lg text-[11px] font-mono overflow-x-auto text-muted-foreground">
                 {result.sql}
               </pre>
             )}
           </div>
         )}
-        
+
         {/* Actions */}
         <div className="flex gap-2 pt-1">
           <Button

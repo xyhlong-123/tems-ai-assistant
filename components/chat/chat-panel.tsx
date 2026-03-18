@@ -8,7 +8,10 @@ import { ThinkingIndicator } from './thinking-indicator'
 import { ResultCard } from './result-card'
 import { ChartSection } from './chart-section'
 import { SuggestedQueries } from './suggested-queries'
-import { getAIResponse, suggestedQueries, type QueryResult } from '@/lib/mock-data'
+import { ClarificationButtons } from './clarification-buttons'
+import { WelcomeScreen } from './welcome-screen'
+import { QueryDivider } from './query-divider'
+import { getAIResponse, type QueryResult, type ClarificationOption } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 
 interface Message {
@@ -17,13 +20,19 @@ interface Message {
   isUser: boolean
   timestamp: Date
   result?: QueryResult
+  clarification?: {
+    question: string
+    options: ClarificationOption[]
+  }
+  suggestedFollowUps?: string[]
+  type?: 'message' | 'divider'
 }
 
 interface ChatPanelProps {
   className?: string
 }
 
-const INITIAL_MESSAGE = 'Hello! I\'m TEMS AI Assistant. I can help you query telecom expense data, analyze vendor costs, and explore circuit inventory. What would you like to know?'
+const INITIAL_MESSAGE = 'Hello! I\'m TEMS AI Assistant. I can help you query telecom expense data, analyze vendor costs, and explore circuit inventory.'
 
 export function ChatPanel({ className }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([])
@@ -34,7 +43,7 @@ export function ChatPanel({ className }: ChatPanelProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  // Initialize with welcome message on client side only to avoid hydration mismatch
+  // Initialize with welcome message
   useEffect(() => {
     if (messages.length === 0) {
       setMessages([
@@ -52,9 +61,10 @@ export function ChatPanel({ className }: ChatPanelProps) {
     scrollToBottom()
   }, [messages, isThinking])
 
+  // Check if we're in the initial welcome state (only welcome message, no user interaction yet)
+  const isWelcomeState = messages.length === 1 && !messages[0].isUser
+
   const handleSendMessage = async (content: string) => {
-    console.log("[v0] handleSendMessage called with:", content)
-    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -63,16 +73,12 @@ export function ChatPanel({ className }: ChatPanelProps) {
     }
     setMessages((prev) => [...prev, userMessage])
 
-    // Show thinking indicator
     setIsThinking(true)
 
     // Simulate AI thinking delay
     await new Promise((resolve) => setTimeout(resolve, 1200 + Math.random() * 800))
 
-    // Get AI response
-    console.log("[v0] About to call getAIResponse with:", content)
     const response = getAIResponse(content)
-    console.log("[v0] getAIResponse returned:", response)
 
     const aiMessage: Message = {
       id: (Date.now() + 1).toString(),
@@ -80,6 +86,8 @@ export function ChatPanel({ className }: ChatPanelProps) {
       isUser: false,
       timestamp: new Date(),
       result: response.result,
+      clarification: response.clarification,
+      suggestedFollowUps: response.suggestedFollowUps,
     }
 
     setIsThinking(false)
@@ -87,14 +95,21 @@ export function ChatPanel({ className }: ChatPanelProps) {
   }
 
   const handleNewQuery = () => {
-    setMessages([
-      {
-        id: Date.now().toString(),
-        content: 'Starting a new conversation. How can I help you with telecom expense data?',
-        isUser: false,
-        timestamp: new Date(),
-      },
-    ])
+    // Insert a divider instead of clearing history
+    const divider: Message = {
+      id: `divider-${Date.now()}`,
+      content: '',
+      isUser: false,
+      timestamp: new Date(),
+      type: 'divider',
+    }
+    const resetMessage: Message = {
+      id: Date.now().toString(),
+      content: 'New query started. Previous context has been cleared. How can I help you?',
+      isUser: false,
+      timestamp: new Date(),
+    }
+    setMessages((prev) => [...prev, divider, resetMessage])
   }
 
   // Show loading state while initializing
@@ -115,13 +130,17 @@ export function ChatPanel({ className }: ChatPanelProps) {
     handleSendMessage(query)
   }
 
-  // Determine if we should show chart as bar (for vendor data) or line (for time series)
   const getChartType = (title: string): 'bar' | 'line' => {
     if (title.toLowerCase().includes('vendor') || title.toLowerCase().includes('distribution')) {
       return 'bar'
     }
     return 'line'
   }
+
+  // Find the last divider index to determine which messages are "active"
+  const lastDividerIndex = messages.reduce((lastIdx, msg, idx) => {
+    return msg.type === 'divider' ? idx : lastIdx
+  }, -1)
 
   return (
     <div
@@ -134,37 +153,64 @@ export function ChatPanel({ className }: ChatPanelProps) {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <div key={message.id} className="space-y-3">
-            <MessageBubble
-              content={message.content}
-              isUser={message.isUser}
-              timestamp={message.timestamp}
-            />
+        {messages.map((message, index) => {
+          // Check if this message is before the last divider (historical)
+          const isHistorical = lastDividerIndex >= 0 && index < lastDividerIndex
 
-            {/* Result Card */}
-            {message.result && (
-              <div className="ml-9 space-y-3">
-                <ResultCard result={message.result} />
+          if (message.type === 'divider') {
+            return <QueryDivider key={message.id} timestamp={message.timestamp} />
+          }
 
-                {/* Chart */}
-                {message.result.chartData && message.result.chartTitle && (
-                  <ChartSection
-                    data={message.result.chartData}
-                    title={message.result.chartTitle}
-                    chartType={getChartType(message.result.chartTitle)}
+          return (
+            <div key={message.id} className={cn('space-y-3', isHistorical && 'opacity-40')}>
+              <MessageBubble
+                content={message.content}
+                isUser={message.isUser}
+                timestamp={message.timestamp}
+              />
+
+              {/* Clarification buttons */}
+              {message.clarification && !isHistorical && (
+                <div className="ml-9">
+                  <ClarificationButtons
+                    question={message.clarification.question}
+                    options={message.clarification.options}
+                    onSelect={handleSuggestedQuery}
                   />
-                )}
+                </div>
+              )}
 
-                {/* Suggested Queries after results */}
-                <SuggestedQueries
-                  queries={suggestedQueries.slice(0, 4)}
-                  onSelect={handleSuggestedQuery}
-                />
-              </div>
-            )}
-          </div>
-        ))}
+              {/* Result Card */}
+              {message.result && (
+                <div className="ml-9 space-y-3">
+                  <ResultCard result={message.result} />
+
+                  {/* Chart */}
+                  {message.result.chartData && message.result.chartTitle && (
+                    <ChartSection
+                      data={message.result.chartData}
+                      title={message.result.chartTitle}
+                      chartType={getChartType(message.result.chartTitle)}
+                    />
+                  )}
+
+                  {/* Context-aware suggested follow-ups */}
+                  {message.suggestedFollowUps && !isHistorical && (
+                    <SuggestedQueries
+                      queries={message.suggestedFollowUps}
+                      onSelect={handleSuggestedQuery}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Welcome screen with example queries (only show in initial state) */}
+        {isWelcomeState && (
+          <WelcomeScreen onSelect={handleSuggestedQuery} />
+        )}
 
         {isThinking && <ThinkingIndicator />}
 

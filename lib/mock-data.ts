@@ -10,6 +10,7 @@ export interface VendorData {
 export interface MonthlyTrend {
   month: string
   cost: number
+  [key: string]: string | number
 }
 
 export interface CircuitData {
@@ -21,6 +22,18 @@ export interface CircuitData {
   status: 'active' | 'inactive'
 }
 
+export interface ClarificationOption {
+  label: string
+  query: string
+}
+
+export interface TableColumn {
+  key: string
+  label: string
+  align?: 'left' | 'right'
+  format?: (value: unknown) => string
+}
+
 export interface QueryResult {
   title: string
   value: string
@@ -29,6 +42,18 @@ export interface QueryResult {
   sql?: string
   chartData?: MonthlyTrend[]
   chartTitle?: string
+  tableData?: Record<string, unknown>[]
+  tableColumns?: TableColumn[]
+}
+
+export interface AIResponse {
+  message: string
+  result?: QueryResult
+  clarification?: {
+    question: string
+    options: ClarificationOption[]
+  }
+  suggestedFollowUps?: string[]
 }
 
 export const vendorData: VendorData[] = [
@@ -91,12 +116,70 @@ export const suggestedQueries = [
   'Inactive circuits count',
 ]
 
+// Format currency for table display
+const formatCurrency = (value: unknown) => `$${Number(value).toLocaleString()}`
+
 // Simulate AI response based on query
-export function getAIResponse(query: string): { message: string; result?: QueryResult } {
+export function getAIResponse(query: string): AIResponse {
   const lowerQuery = query.toLowerCase()
-  console.log("[v0] getAIResponse called with query:", query)
-  console.log("[v0] lowerQuery:", lowerQuery)
-  
+
+  // --- Clarification triggers (ambiguous queries) ---
+
+  // Vague "cost" query triggers clarification
+  if (
+    (lowerQuery === 'cost' || lowerQuery === 'costs' || lowerQuery === 'show me costs' || lowerQuery === '费用') &&
+    !lowerQuery.includes('vendor') && !lowerQuery.includes('fiber') && !lowerQuery.includes('total')
+  ) {
+    return {
+      message: 'I\'d like to help you with cost data. Could you specify what you\'re looking for?',
+      clarification: {
+        question: 'What type of cost data would you like to see?',
+        options: [
+          { label: 'Top 10 Vendors by Cost', query: 'Top 10 vendors cost' },
+          { label: 'Monthly Fiber Cost Trend', query: 'Monthly fiber cost' },
+          { label: 'Total Telecom Spend YTD', query: 'Total telecom spend YTD' },
+        ],
+      },
+    }
+  }
+
+  // Vague "circuit" query
+  if (
+    (lowerQuery === 'circuit' || lowerQuery === 'circuits' || lowerQuery === 'show circuits') &&
+    !lowerQuery.includes('bell') && !lowerQuery.includes('inactive') && !lowerQuery.includes('inventory')
+  ) {
+    return {
+      message: 'I can help you look up circuit information. What specifically would you like to know?',
+      clarification: {
+        question: 'What circuit information are you interested in?',
+        options: [
+          { label: 'Bell Circuit Inventory', query: 'Bell circuit inventory' },
+          { label: 'Inactive Circuits', query: 'Inactive circuits count' },
+          { label: 'All Circuit Inventory', query: 'Total telecom spend YTD' },
+        ],
+      },
+    }
+  }
+
+  // Vague vendor query
+  if (
+    (lowerQuery === 'vendor' || lowerQuery === 'vendors' || lowerQuery === 'show vendors') &&
+    !lowerQuery.includes('top') && !lowerQuery.includes('cost')
+  ) {
+    return {
+      message: 'Sure! What vendor information would you like to see?',
+      clarification: {
+        question: 'What vendor data are you looking for?',
+        options: [
+          { label: 'Top 10 Vendors by Cost', query: 'Top 10 vendors cost' },
+          { label: 'Rogers vs Bell Comparison', query: 'Rogers vs Bell spending' },
+        ],
+      },
+    }
+  }
+
+  // --- Normal queries with results ---
+
   // Rogers Bell cost query
   if (lowerQuery.includes('rogers') && lowerQuery.includes('bell') && lowerQuery.includes('cost')) {
     const rogersTotal = vendorData.find(v => v.vendor === 'Rogers')?.totalCost || 0
@@ -109,14 +192,17 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         source: 'TEMS Cost Rate Inventory',
         calculation: 'SUM(invoice_item.amount) WHERE vendor IN ("Rogers", "Bell")',
         sql: 'SELECT SUM(amount) FROM invoice_items WHERE vendor_name IN (\'Rogers\', \'Bell\') AND invoice_date >= DATE_TRUNC(\'year\', CURRENT_DATE)',
-      }
+      },
+      suggestedFollowUps: [
+        'Rogers vs Bell spending',
+        'Top 10 vendors cost',
+        'Monthly fiber cost',
+      ],
     }
   }
-  
+
   // Top vendors query
-  console.log("[v0] Checking top vendors:", lowerQuery.includes('top'), lowerQuery.includes('vendor'), lowerQuery.includes('cost'))
   if (lowerQuery.includes('top') && (lowerQuery.includes('vendor') || lowerQuery.includes('cost'))) {
-    console.log("[v0] Matched top vendors query!")
     const top10 = vendorData.slice(0, 10)
     const total = top10.reduce((sum, v) => sum + v.totalCost, 0)
     return {
@@ -129,10 +215,21 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         sql: 'SELECT vendor_name, SUM(amount) as total FROM invoice_items GROUP BY vendor_name ORDER BY total DESC LIMIT 10',
         chartData: top10.map(v => ({ month: v.vendor, cost: v.totalCost })),
         chartTitle: 'Vendor Cost Distribution',
-      }
+        tableData: top10.map(v => ({ vendor: v.vendor, totalCost: v.totalCost, circuits: v.circuits })),
+        tableColumns: [
+          { key: 'vendor', label: 'Vendor', align: 'left' },
+          { key: 'totalCost', label: 'Total Cost', align: 'right', format: formatCurrency },
+          { key: 'circuits', label: 'Circuits', align: 'right' },
+        ],
+      },
+      suggestedFollowUps: [
+        'Rogers vs Bell spending',
+        'Monthly fiber cost',
+        'Inactive circuits count',
+      ],
     }
   }
-  
+
   // Monthly fiber cost
   if (lowerQuery.includes('monthly') && lowerQuery.includes('fiber')) {
     const total = monthlyFiberCost.reduce((sum, m) => sum + m.cost, 0)
@@ -146,10 +243,20 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         sql: 'SELECT DATE_TRUNC(\'month\', invoice_date) as month, SUM(amount) FROM invoice_items WHERE circuit_type = \'Fiber\' GROUP BY month ORDER BY month',
         chartData: monthlyFiberCost,
         chartTitle: 'Monthly Fiber Cost',
-      }
+        tableData: monthlyFiberCost.map(m => ({ month: m.month, cost: m.cost })),
+        tableColumns: [
+          { key: 'month', label: 'Month', align: 'left' },
+          { key: 'cost', label: 'Cost', align: 'right', format: formatCurrency },
+        ],
+      },
+      suggestedFollowUps: [
+        'Top 10 vendors cost',
+        'Rogers vs Bell spending',
+        'Total telecom spend YTD',
+      ],
     }
   }
-  
+
   // Rogers vs Bell
   if (lowerQuery.includes('rogers') && lowerQuery.includes('bell') && (lowerQuery.includes('vs') || lowerQuery.includes('spending') || lowerQuery.includes('compare'))) {
     return {
@@ -162,10 +269,21 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         sql: 'SELECT vendor_name, DATE_TRUNC(\'month\', invoice_date) as month, SUM(amount) FROM invoice_items WHERE vendor_name IN (\'Rogers\', \'Bell\') GROUP BY vendor_name, month',
         chartData: rogersVsBellMonthly.map(r => ({ month: r.month, cost: r.rogers + r.bell })),
         chartTitle: 'Rogers vs Bell Monthly Trend',
-      }
+        tableData: rogersVsBellMonthly.map(r => ({ month: r.month, rogers: r.rogers, bell: r.bell })),
+        tableColumns: [
+          { key: 'month', label: 'Month', align: 'left' },
+          { key: 'rogers', label: 'Rogers', align: 'right', format: formatCurrency },
+          { key: 'bell', label: 'Bell', align: 'right', format: formatCurrency },
+        ],
+      },
+      suggestedFollowUps: [
+        'Top 10 vendors cost',
+        'Monthly fiber cost',
+        'Bell circuit inventory',
+      ],
     }
   }
-  
+
   // Bell inventory
   if (lowerQuery.includes('bell') && lowerQuery.includes('inventory')) {
     const bellCircuits = circuitInventory.filter(c => c.vendor === 'Bell')
@@ -177,7 +295,20 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         source: 'TEMS Circuit Inventory',
         calculation: 'COUNT(*), SUM(monthly_cost) WHERE vendor = "Bell"',
         sql: 'SELECT circuit_id, type, monthly_cost, location, status FROM circuits WHERE vendor_name = \'Bell\'',
-      }
+        tableData: bellCircuits.map(c => ({ circuitId: c.circuitId, type: c.type, monthlyCost: c.monthlyCost, location: c.location, status: c.status })),
+        tableColumns: [
+          { key: 'circuitId', label: 'Circuit ID', align: 'left' },
+          { key: 'type', label: 'Type', align: 'left' },
+          { key: 'monthlyCost', label: 'Monthly Cost', align: 'right', format: formatCurrency },
+          { key: 'location', label: 'Location', align: 'left' },
+          { key: 'status', label: 'Status', align: 'left' },
+        ],
+      },
+      suggestedFollowUps: [
+        'Inactive circuits count',
+        'Top 10 vendors cost',
+        'Rogers vs Bell spending',
+      ],
     }
   }
 
@@ -195,10 +326,15 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         value: '$12,500',
         source: 'Bell Invoice',
         calculation: 'sum of MRC for this month',
-      }
+      },
+      suggestedFollowUps: [
+        'Bell circuit inventory',
+        'Rogers vs Bell spending',
+        'Monthly fiber cost',
+      ],
     }
   }
-  
+
   // Total spend
   if (lowerQuery.includes('total') && (lowerQuery.includes('spend') || lowerQuery.includes('cost'))) {
     const total = vendorData.reduce((sum, v) => sum + v.totalCost, 0)
@@ -210,10 +346,15 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         source: 'TEMS Financial Summary',
         calculation: 'SUM(invoice_item.amount) WHERE invoice_date >= YEAR_START',
         sql: 'SELECT SUM(amount) FROM invoice_items WHERE invoice_date >= DATE_TRUNC(\'year\', CURRENT_DATE)',
-      }
+      },
+      suggestedFollowUps: [
+        'Top 10 vendors cost',
+        'Monthly fiber cost',
+        'Inactive circuits count',
+      ],
     }
   }
-  
+
   // Inactive circuits
   if (lowerQuery.includes('inactive') && lowerQuery.includes('circuit')) {
     const inactive = circuitInventory.filter(c => c.status === 'inactive')
@@ -225,12 +366,33 @@ export function getAIResponse(query: string): { message: string; result?: QueryR
         source: 'TEMS Circuit Status Report',
         calculation: 'COUNT(*), SUM(monthly_cost) WHERE status = "inactive"',
         sql: 'SELECT circuit_id, vendor_name, monthly_cost FROM circuits WHERE status = \'inactive\'',
-      }
+        tableData: inactive.map(c => ({ circuitId: c.circuitId, vendor: c.vendor, type: c.type, monthlyCost: c.monthlyCost, location: c.location })),
+        tableColumns: [
+          { key: 'circuitId', label: 'Circuit ID', align: 'left' },
+          { key: 'vendor', label: 'Vendor', align: 'left' },
+          { key: 'type', label: 'Type', align: 'left' },
+          { key: 'monthlyCost', label: 'Monthly Cost', align: 'right', format: formatCurrency },
+          { key: 'location', label: 'Location', align: 'left' },
+        ],
+      },
+      suggestedFollowUps: [
+        'Bell circuit inventory',
+        'Total telecom spend YTD',
+        'Top 10 vendors cost',
+      ],
     }
   }
-  
-  // Default response
+
+  // --- Default: unrecognized query ---
   return {
-    message: 'I can help you query telecom expense data. Try asking about vendor costs, circuit inventory, or monthly spending trends. You can also click on the suggested queries below to get started.',
+    message: 'I couldn\'t find relevant data matching your query. Here are some things I can help you with:',
+    clarification: {
+      question: 'Try one of these common queries:',
+      options: [
+        { label: 'Top 10 Vendors by Cost', query: 'Top 10 vendors cost' },
+        { label: 'Monthly Fiber Cost Trend', query: 'Monthly fiber cost' },
+        { label: 'Bell Circuit Inventory', query: 'Bell circuit inventory' },
+      ],
+    },
   }
 }

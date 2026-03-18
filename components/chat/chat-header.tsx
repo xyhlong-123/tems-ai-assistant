@@ -7,7 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Plus, MoreHorizontal, Sparkles, Settings, Download, Trash2 } from 'lucide-react'
+import { Plus, MoreHorizontal, Sparkles, Settings, Download } from 'lucide-react'
 
 interface ChatHeaderProps {
   onNewQuery: () => void
@@ -25,7 +25,7 @@ export function ChatHeader({ onNewQuery }: ChatHeaderProps) {
           <p className="text-xs text-muted-foreground">Telecom Data Query</p>
         </div>
       </div>
-      
+
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
@@ -36,7 +36,7 @@ export function ChatHeader({ onNewQuery }: ChatHeaderProps) {
           <Plus className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">New Query</span>
         </Button>
-        
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -52,10 +52,6 @@ export function ChatHeader({ onNewQuery }: ChatHeaderProps) {
             <DropdownMenuItem className="gap-2 text-sm">
               <Download className="w-4 h-4" />
               Export History
-            </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 text-sm text-destructive">
-              <Trash2 className="w-4 h-4" />
-              Clear History
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
