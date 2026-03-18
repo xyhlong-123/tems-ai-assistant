@@ -38,7 +38,10 @@ export function ChatInput({ onSend, disabled, placeholder = 'Ask TEMS data...' }
   }
 
   return (
-    <div className="p-3 border-t border-border bg-card">
+    <div
+      className="p-3 border-t border-border bg-card"
+      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+    >
       <div className="flex items-end gap-2 rounded-xl border border-input bg-background p-2 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1">
         <textarea
           ref={textareaRef}
@@ -48,7 +51,7 @@ export function ChatInput({ onSend, disabled, placeholder = 'Ask TEMS data...' }
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-50 min-h-[24px] max-h-[120px] py-1 px-1"
+          className="flex-1 resize-none bg-transparent text-[16px] sm:text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-50 min-h-[24px] max-h-[120px] py-1 px-1"
         />
         <Button
           size="icon"
